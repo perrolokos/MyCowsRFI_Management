@@ -1,0 +1,527 @@
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import {
+    Box,
+    Typography,
+    Container,
+    Alert,
+    Button,
+    Paper,
+    IconButton,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    TextField,
+    DialogActions,
+    CircularProgress,
+    Chip,
+    Tooltip,
+    Snackbar,
+} from '@mui/material';
+import { DataGrid } from '@mui/x-data-grid';
+import { esES } from '@mui/x-data-grid/locales';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import AddIcon from '@mui/icons-material/Add';
+import SearchIcon from '@mui/icons-material/Search';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import { Navbar } from '../components/Navbar';
+import { Footer } from '../components/Footer';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchAnimals, deleteAnimal } from '../redux/animals/animalSlice';
+import { fetchBreeds } from '../redux/breeds/breedSlice';
+import { AnimalForm } from '../components/AnimalForm';
+
+// Constantes para mejorar la mantenibilidad
+const GRID_CONFIG = {
+    DEFAULT_PAGE_SIZE: 10,
+    PAGE_SIZE_OPTIONS: [10, 25, 50, 100],
+    IMAGE_SIZE: { width: 50, height: 50 },
+    GRID_HEIGHT: 600,
+};
+
+const SEARCH_DEBOUNCE_DELAY = 300;
+
+export const AnimalManagementPage = () => {
+    const dispatch = useDispatch();
+    const { items: animals, isLoading, error } = useSelector((state) => state.animals);
+    const { items: breeds, isLoading: breedsLoading, error: breedsError } = useSelector((state) => state.breeds);
+
+    // Estados del componente
+    const [openForm, setOpenForm] = useState(false);
+    const [selectedAnimal, setSelectedAnimal] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+    const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, name: '' });
+    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+    // Función para mostrar notificaciones (definida antes de su uso en useEffect)
+    const showSnackbar = useCallback((message, severity = 'success') => {
+        setSnackbar({ open: true, message, severity });
+    }, []);
+
+    // Efecto para cargar datos iniciales
+    useEffect(() => {
+        const loadInitialData = async () => {
+            try {
+                // Aseguramos que las razas se carguen primero
+                await dispatch(fetchBreeds()).unwrap(); 
+                await dispatch(fetchAnimals()).unwrap();
+            } catch (error) {
+                console.error('Error loading initial data:', error);
+                showSnackbar('Error al cargar los datos iniciales', 'error');
+            }
+        };
+        
+        loadInitialData();
+    }, [dispatch, showSnackbar]); // Añadir showSnackbar a las dependencias
+
+    // Debounce para el buscador
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearchQuery(searchQuery);
+        }, SEARCH_DEBOUNCE_DELAY);
+
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+
+    // Manejo de errores de Redux con Snackbar
+    useEffect(() => {
+        if (error) {
+            showSnackbar(error.message || 'Ha ocurrido un error en animales', 'error');
+        }
+        if (breedsError) {
+            showSnackbar(breedsError.message || 'Ha ocurrido un error en razas', 'error');
+        }
+    }, [error, breedsError, showSnackbar]);
+
+    // Memoización del mapa de razas con manejo de errores
+    const breedsMap = useMemo(() => {
+        if (!Array.isArray(breeds) || breeds.length === 0) {
+            return {};
+        }
+        
+        return breeds.reduce((acc, breed) => {
+            if (breed && breed.id && breed.nombre) {
+                acc[breed.id] = breed.nombre;
+            }
+            return acc;
+        }, {});
+    }, [breeds]);
+
+    // Manejo del formulario
+    const handleOpenForm = useCallback((animal = null) => {
+        setSelectedAnimal(animal);
+        setOpenForm(true);
+    }, []);
+
+    const handleCloseForm = useCallback(() => {
+        setOpenForm(false);
+        setSelectedAnimal(null);
+        // Refrescar datos después de cerrar el formulario
+        dispatch(fetchAnimals());
+    }, [dispatch]);
+
+    // Manejo de eliminación
+    const handleDeleteClick = useCallback((id, name) => {
+        setDeleteConfirm({ open: true, id, name });
+    }, []);
+
+    const handleDeleteConfirm = useCallback(async () => {
+        if (deleteConfirm.id) {
+            try {
+                await dispatch(deleteAnimal(deleteConfirm.id)).unwrap();
+                showSnackbar('Ejemplar eliminado exitosamente', 'success');
+            } catch (error) {
+                showSnackbar('Error al eliminar el ejemplar', 'error');
+            }
+        }
+        setDeleteConfirm({ open: false, id: null, name: '' });
+    }, [deleteConfirm.id, dispatch, showSnackbar]);
+
+    const handleDeleteCancel = useCallback(() => {
+        setDeleteConfirm({ open: false, id: null, name: '' });
+    }, []);
+
+    // Función para refrescar datos
+    const handleRefresh = useCallback(() => {
+        dispatch(fetchAnimals());
+        dispatch(fetchBreeds());
+        showSnackbar('Datos actualizados', 'info');
+    }, [dispatch, showSnackbar]);
+
+    // Filtrado mejorado de animales
+    const filteredAnimals = useMemo(() => {
+        if (!Array.isArray(animals)) return [];
+
+        let filteredData = animals.filter(animal => 
+            animal && 
+            typeof animal === 'object' && 
+            'id' in animal &&
+            animal.id != null
+        );
+
+        if (debouncedSearchQuery.trim()) {
+            const query = debouncedSearchQuery.toLowerCase().trim();
+            filteredData = filteredData.filter(animal => {
+                const matchesName = animal.nombre?.toLowerCase().includes(query);
+                const matchesId = animal.identificador?.toLowerCase().includes(query);
+                const matchesBreed = breedsMap[animal.raza]?.toLowerCase().includes(query);
+                
+                return matchesName || matchesId || matchesBreed;
+            });
+        }
+
+        return filteredData;
+    }, [animals, debouncedSearchQuery, breedsMap]);
+
+    // Definición mejorada de columnas
+    const columns = useMemo(() => [
+        { 
+            field: 'identificador', 
+            headerName: 'Identificador', 
+            flex: 1,
+            minWidth: 120,
+            renderCell: (params) => (
+                <Chip 
+                    label={params.value} 
+                    size="small" 
+                    variant="outlined" 
+                    color="primary"
+                />
+            )
+        },
+        { 
+            field: 'nombre', 
+            headerName: 'Nombre', 
+            flex: 1,
+            minWidth: 120,
+        },
+        {
+            field: 'raza',
+            headerName: 'Raza',
+            flex: 1,
+            minWidth: 120,
+            valueGetter: (params) => {
+                // Aseguramos que breedsMap esté listo y que params.row.raza exista
+                if (breedsMap && params.row?.raza) {
+                    return breedsMap[params.row.raza] || 'No especificada';
+                }
+                return 'No especificada';
+            },
+            renderCell: (params) => (
+                <Chip 
+                    label={params.value} 
+                    size="small" 
+                    color={params.value === 'No especificada' ? 'default' : 'secondary'}
+                />
+            )
+        },
+        { 
+            field: 'fecha_nacimiento', 
+            headerName: 'Fecha de Nacimiento', 
+            flex: 1,
+            minWidth: 140,
+            valueFormatter: (params) => {
+                if (!params.value) return 'No especificada';
+                const date = new Date(params.value);
+                if (isNaN(date.getTime())) { // Check for invalid date
+                    return 'Fecha inválida';
+                }
+                return date.toLocaleDateString('es-ES');
+            }
+        },
+        { 
+            field: 'peso_actual', 
+            headerName: 'Peso (kg)', 
+            type: 'number', 
+            flex: 0.8,
+            minWidth: 100,
+            valueFormatter: (params) => {
+                if (params.value === null || params.value === undefined || params.value === '') return 'N/A';
+                return `${params.value} kg`;
+            }
+        },
+        { 
+            field: 'talla_actual', 
+            headerName: 'Talla (cm)', 
+            type: 'number', 
+            flex: 0.8,
+            minWidth: 100,
+            valueFormatter: (params) => {
+                if (params.value === null || params.value === undefined || params.value === '') return 'N/A';
+                return `${params.value} cm`;
+            }
+        },
+        {
+            field: 'foto',
+            headerName: 'Foto',
+            flex: 0.8,
+            minWidth: 80,
+            renderCell: (params) => {
+                if (params.value) {
+                    return (
+                        <Tooltip title="Ver imagen completa">
+                            <img 
+                                src={params.value} 
+                                alt={`Foto de ${params.row.nombre || 'ejemplar'}`}
+                                style={{ 
+                                    width: GRID_CONFIG.IMAGE_SIZE.width, 
+                                    height: GRID_CONFIG.IMAGE_SIZE.height, 
+                                    objectFit: 'cover', 
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    border: '2px solid #e0e0e0'
+                                }}
+                                onError={(e) => {
+                                    e.target.style.display = 'none';
+                                }}
+                            />
+                        </Tooltip>
+                    );
+                }
+                return <Typography variant="caption" color="textSecondary">Sin foto</Typography>;
+            },
+            sortable: false,
+            filterable: false,
+        },
+        {
+            field: 'actions',
+            headerName: 'Acciones',
+            align: 'center',
+            headerAlign: 'center',
+            sortable: false,
+            filterable: false,
+            flex: 1,
+            minWidth: 120,
+            renderCell: (params) => (
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Tooltip title="Editar ejemplar">
+                        <IconButton 
+                            onClick={() => handleOpenForm(params.row)} 
+                            color="primary"
+                            size="small"
+                        >
+                            <EditIcon />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Eliminar ejemplar">
+                        <IconButton 
+                            onClick={() => handleDeleteClick(params.row.id, params.row.nombre)} 
+                            color="error"
+                            size="small"
+                        >
+                            <DeleteIcon />
+                        </IconButton>
+                    </Tooltip>
+                </Box>
+            ),
+        },
+    ], [breedsMap, handleOpenForm, handleDeleteClick]);
+
+    // Renderizado del componente
+    return (
+        <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+            <Navbar />
+            <Container component="main" sx={{ flexGrow: 1, mt: 4, mb: 2 }}>
+                <Paper sx={{ p: 3, borderRadius: 3, boxShadow: 4 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                        <Typography variant="h4" component="h1" color="primary.main">
+                            Gestión de Ejemplares
+                        </Typography>
+                        <Chip 
+                            label={`${filteredAnimals.length} ejemplar${filteredAnimals.length !== 1 ? 'es' : ''}`}
+                            color="info"
+                            variant="outlined"
+                        />
+                    </Box>
+
+                    <Box sx={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        mb: 3,
+                        flexWrap: 'wrap',
+                        gap: 2
+                    }}>
+                        <Box sx={{ display: 'flex', gap: 2 }}>
+                            <Button 
+                                variant="contained" 
+                                color="primary" 
+                                onClick={() => handleOpenForm()}
+                                startIcon={<AddIcon />}
+                                disabled={isLoading}
+                            >
+                                Añadir Ejemplar
+                            </Button>
+                            <Button 
+                                variant="outlined" 
+                                onClick={handleRefresh}
+                                startIcon={<RefreshIcon />}
+                                disabled={isLoading}
+                            >
+                                Actualizar
+                            </Button>
+                        </Box>
+                        
+                        <TextField
+                            label="Buscar ejemplares"
+                            placeholder="Nombre, ID o raza..."
+                            variant="outlined"
+                            size="small"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            InputProps={{
+                                startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                            }}
+                            sx={{ minWidth: 250 }}
+                        />
+                    </Box>
+
+                    {(error || breedsError) && (
+                        <Alert severity="error" sx={{ mb: 2 }}>
+                            {error?.message || breedsError?.message || 'Ha ocurrido un error'}
+                        </Alert>
+                    )}
+
+                    <Box sx={{ height: GRID_CONFIG.GRID_HEIGHT, width: '100%' }}>
+                        {isLoading || breedsLoading ? (
+                            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                                <CircularProgress />
+                            </Box>
+                        ) : (
+                            <DataGrid
+                                rows={filteredAnimals}
+                                columns={columns}
+                                pageSizeOptions={GRID_CONFIG.PAGE_SIZE_OPTIONS}
+                                initialState={{
+                                    pagination: {
+                                        paginationModel: { pageSize: GRID_CONFIG.DEFAULT_PAGE_SIZE },
+                                    },
+                                }}
+                                localeText={esES.components.MuiDataGrid.defaultProps.localeText}
+                                disableSelectionOnClick
+                                checkboxSelection={false}
+                                sx={{
+                                    '& .MuiDataGrid-root': {
+                                        border: 'none',
+                                    },
+                                    '& .MuiDataGrid-cell': {
+                                        borderBottom: '1px solid #f0f0f0',
+                                        py: 1,
+                                    },
+                                    '& .MuiDataGrid-columnHeaders': {
+                                        backgroundColor: 'primary.main',
+                                        color: 'primary.contrastText',
+                                        borderBottom: 'none',
+                                        '& .MuiDataGrid-columnHeaderTitle': {
+                                            fontWeight: 600,
+                                        }
+                                    },
+                                    '& .MuiDataGrid-row:hover': {
+                                        backgroundColor: 'action.hover',
+                                    },
+                                    '& .MuiDataGrid-footerContainer': {
+                                        borderTop: '2px solid #e0e0e0',
+                                        backgroundColor: 'background.paper',
+                                    }
+                                }}
+                            slots={{
+                                noRowsOverlay: () => (
+                                    <Box sx={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center', 
+                                        height: '100%',
+                                        flexDirection: 'column',
+                                        gap: 2
+                                    }}>
+                                        <Typography variant="h6" color="textSecondary">
+                                            No se encontraron ejemplares
+                                        </Typography>
+                                        {searchQuery && (
+                                            <Typography variant="body2" color="textSecondary">
+                                                Intenta con otros términos de búsqueda
+                                            </Typography>
+                                        )}
+                                    </Box>
+                                ),
+                            }}
+                        />
+                    </Box>
+                </Paper>
+            </Container>
+            <Footer />
+
+            {/* Diálogo para Añadir/Editar Ejemplar */}
+            <>
+                <Dialog 
+                    open={openForm} 
+                    onClose={handleCloseForm} 
+                    maxWidth="md" 
+                    fullWidth
+                    PaperProps={{
+                        sx: { borderRadius: 2 }
+                    }}
+                >
+                    <DialogTitle sx={{ backgroundColor: 'primary.main', color: 'primary.contrastText' }}>
+                        {selectedAnimal ? 'Editar Ejemplar' : 'Añadir Nuevo Ejemplar'}
+                    </DialogTitle>
+                    <DialogContent sx={{ pt: 3 }}>
+                        <AnimalForm animal={selectedAnimal} onClose={handleCloseForm} />
+                    </DialogContent>
+                </Dialog>
+
+                {/* Diálogo de Confirmación para Eliminar */}
+                <Dialog
+                    open={deleteConfirm.open}
+                    onClose={handleDeleteCancel}
+                    PaperProps={{
+                        sx: { borderRadius: 2 }
+                    }}
+                >
+                    <DialogTitle color="error.main">
+                        Confirmar Eliminación
+                    </DialogTitle>
+                    <DialogContent>
+                        <Typography>
+                            ¿Estás seguro de que quieres eliminar el ejemplar <strong>"{deleteConfirm.name}"</strong>?
+                        </Typography>
+                        <Typography variant="body2" color="error.main" sx={{ mt: 1 }}>
+                            Esta acción no se puede deshacer.
+                        </Typography>
+                    </DialogContent>
+                    <DialogActions sx={{ p: 2, gap: 1 }}>
+                        <Button onClick={handleDeleteCancel} variant="outlined">
+                            Cancelar
+                        </Button>
+                        <Button 
+                            onClick={handleDeleteConfirm} 
+                            color="error" 
+                            variant="contained"
+                            startIcon={<DeleteIcon />}
+                        >
+                            Eliminar
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+
+                {/* Snackbar para notificaciones */}
+                <Snackbar
+                    open={snackbar.open}
+                    autoHideDuration={4000}
+                    onClose={() => setSnackbar({ ...snackbar, open: false })}
+                    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                >
+                    <Alert 
+                        onClose={() => setSnackbar({ ...snackbar, open: false })} 
+                        severity={snackbar.severity}
+                        variant="filled"
+                    >
+                        {snackbar.message}
+                    </Alert>
+                </Snackbar>
+            </>
+        </Box>
+    );
+};
+
+export default AnimalManagementPage;
