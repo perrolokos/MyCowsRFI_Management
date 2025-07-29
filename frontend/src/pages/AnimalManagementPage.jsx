@@ -51,7 +51,7 @@ export const AnimalManagementPage = () => {
     const filteredAnimals = useMemo(() => {
         const animalsWithScores = animals.map(animal => ({
             ...animal,
-            last_score: Math.random() > 0.3 ? (80 + Math.random() * 15).toFixed(1) : null,
+            last_score: animal.score_total !== null ? animal.score_total.toFixed(1) : null,
         }));
 
         if (!debouncedQuery) return animalsWithScores;
@@ -91,11 +91,23 @@ export const AnimalManagementPage = () => {
     }, [dispatch]);
     
     const handleScoreClick = useCallback((animal) => {
-        navigate(`/animals/${animal.id}/score`, { state: { animal } });
-    }, [navigate]);
+        const fullAnimal = { ...animal, raza: breeds.find(b => b.id === animal.raza) };
+        navigate(`/animals/${animal.id}/score`, { state: { animal: fullAnimal } });
+    }, [navigate, breeds]);
 
     const columns = useMemo(() => [
         { field: 'identificador', headerName: 'Identificador', flex: 1, minWidth: 120 },
+        {
+            field: 'foto_url',
+            headerName: 'Foto',
+            flex: 0.5,
+            minWidth: 80,
+            renderCell: ({ value }) => (
+                value ? <img src={value} alt="Animal" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} /> : null
+            ),
+            sortable: false,
+            filterable: false,
+        },
         { field: 'nombre', headerName: 'Nombre', flex: 1.5, minWidth: 150 },
         {
             field: 'raza',

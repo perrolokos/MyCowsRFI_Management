@@ -1,22 +1,31 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../api/api';
-import { getMockDashboardData } from './mockDashboardData';
+import { showNotification } from '../notification/notificationSlice';
 
 export const fetchDashboardData = createAsyncThunk(
     'dashboard/fetchData',
-    async (_, { rejectWithValue }) => {
+    async (_, { rejectWithValue, dispatch }) => {
         try {
-            // Intenta obtener los datos del backend real
             const { data } = await api.get('/dashboard/scores/');
             return data;
         } catch (error) {
-            // Si falla, usa los datos simulados
-            try {
-                const mockData = await getMockDashboardData();
-                return mockData;
-            } catch (mockError) {
-                return rejectWithValue("Error al cargar datos simulados del dashboard.");
-            }
+            const message = error.response?.data?.message || error.message;
+            dispatch(showNotification({ message: `Error al cargar datos del dashboard: ${message}`, severity: 'error' }));
+            return rejectWithValue(message);
+        }
+    }
+);
+
+export const fetchSensorData = createAsyncThunk(
+    'dashboard/fetchSensorData',
+    async (animalId, { rejectWithValue, dispatch }) => {
+        try {
+            const { data } = await api.get(`/animals/${animalId}/sensor-data/`);
+            return data;
+        } catch (error) {
+            const message = error.response?.data?.message || error.message;
+            dispatch(showNotification({ message: `Error al cargar datos del sensor: ${message}`, severity: 'error' }));
+            return rejectWithValue(message);
         }
     }
 );
@@ -24,6 +33,7 @@ export const fetchDashboardData = createAsyncThunk(
 const initialState = {
     averageScoresByBreed: [],
     recentScores: [],
+    sensorData: [],
     isLoading: false,
     error: null,
 };
@@ -44,6 +54,18 @@ const dashboardSlice = createSlice({
                 state.recentScores = action.payload.recentScores;
             })
             .addCase(fetchDashboardData.rejected, (state, action) => {
+                state.isLoading = false;
+                state.error = action.payload;
+            })
+            .addCase(fetchSensorData.pending, (state) => {
+                state.isLoading = true;
+                state.error = null;
+            })
+            .addCase(fetchSensorData.fulfilled, (state, action) => {
+                state.isLoading = false;
+                state.sensorData = action.payload;
+            })
+            .addCase(fetchSensorData.rejected, (state, action) => {
                 state.isLoading = false;
                 state.error = action.payload;
             });

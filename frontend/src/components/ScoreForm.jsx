@@ -13,10 +13,8 @@ export const ScoreForm = ({ animal, scoreTemplate, onClose }) => {
     useEffect(() => {
         // Initialize scores based on the template characteristics
         const initialScores = {};
-        scoreTemplate.categorias.forEach(category => {
-            category.caracteristicas.forEach(characteristic => {
-                initialScores[characteristic.id] = '';
-            });
+        scoreTemplate.characteristics.forEach(characteristic => {
+            initialScores[characteristic.id] = '';
         });
         setScores(initialScores);
     }, [scoreTemplate]);
@@ -39,16 +37,13 @@ export const ScoreForm = ({ animal, scoreTemplate, onClose }) => {
     const handleSubmit = (e) => {
         e.preventDefault();
         const scoresToSubmit = [];
-        scoreTemplate.categorias.forEach(category => {
-            category.caracteristicas.forEach(characteristic => {
-                scoresToSubmit.push({
-                    ejemplar: animal.id,
-                    caracteristica: characteristic.id,
-                    puntuacion_obtenida: parseFloat(scores[characteristic.id]),
-                });
+        scoreTemplate.characteristics.forEach(characteristic => {
+            scoresToSubmit.push({
+                caracteristica_id: characteristic.id,
+                puntuacion_obtenida: parseFloat(scores[characteristic.id]),
             });
         });
-        dispatch(submitScores(scoresToSubmit));
+        dispatch(submitScores({ animalId: animal.id, scores: scoresToSubmit }));
     };
 
     return (
@@ -57,28 +52,30 @@ export const ScoreForm = ({ animal, scoreTemplate, onClose }) => {
                 Calificando a: {animal.nombre} ({animal.identificador})
             </Typography>
             <Typography variant="subtitle1" gutterBottom>
-                Plantilla: {scoreTemplate.nombre}
+                Plantilla: {animal.raza.nombre}
             </Typography>
 
-            {scoreTemplate.categorias.map(category => (
+            {scoreTemplate.categories.map(category => (
                 <Box key={category.id} sx={{ mb: 3, p: 2, border: '1px solid #ccc', borderRadius: '4px' }}>
                     <Typography variant="h6" sx={{ mb: 2 }}>
                         {category.nombre} (Ponderación: {category.ponderacion}%)
                     </Typography>
-                    {category.caracteristicas.map(characteristic => (
-                        <TextField
-                            key={characteristic.id}
-                            margin="normal"
-                            required
-                            fullWidth
-                            label={`${characteristic.nombre} (Ideal: ${characteristic.puntaje_ideal}, Rango: ${characteristic.rango_aceptado_min}-${characteristic.rango_aceptado_max})`}
-                            name={`characteristic-${characteristic.id}`}
-                            type="number"
-                            value={scores[characteristic.id]}
-                            onChange={(e) => handleChange(characteristic.id, e.target.value)}
-                            inputProps={{ step: "0.1" }}
-                        />
-                    ))}
+                    {scoreTemplate.characteristics
+                        .filter(char => char.categoria === category.id)
+                        .map(characteristic => (
+                            <TextField
+                                key={characteristic.id}
+                                margin="normal"
+                                required
+                                fullWidth
+                                label={`${characteristic.nombre} (Ideal: ${characteristic.puntaje_ideal}, Rango: ${characteristic.rango_aceptado_min}-${characteristic.rango_aceptado_max})`}
+                                name={`characteristic-${characteristic.id}`}
+                                type="number"
+                                value={scores[characteristic.id]}
+                                onChange={(e) => handleChange(characteristic.id, e.target.value)}
+                                inputProps={{ step: "0.1" }}
+                            />
+                        ))}
                 </Box>
             ))}
 

@@ -1,21 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../api/api';
 import { showNotification } from '../notification/notificationSlice';
-import { getMockTemplateByBreedId } from './mockTemplates';
-
-// --- INICIO DE LA MODIFICACIÓN ---
-
-// Función para simular el guardado de calificaciones
-const mockSubmitScores = (submissionData) => {
-    return new Promise((resolve) => {
-        setTimeout(() => {
-            console.log("Datos de calificación enviados (simulación):", submissionData);
-            resolve({ status: 'success', submittedData: submissionData });
-        }, 500); // Simulamos una pequeña demora de red
-    });
-};
-
-// --- FIN DE LA MODIFICACIÓN ---
 
 
 // Thunk para obtener la plantilla de calificación
@@ -26,38 +11,25 @@ export const fetchScoreTemplate = createAsyncThunk(
             const { data } = await api.get(`/score-templates/breed/${breedId}/`);
             return data;
         } catch (error) {
-            dispatch(showNotification({ message: 'Usando plantilla local de demostración.', severity: 'info' }));
-            try {
-                const mockData = await getMockTemplateByBreedId(breedId);
-                return mockData;
-            } catch (mockError) {
-                return rejectWithValue(mockError);
-            }
+            const message = error.response?.data?.message || error.message;
+            dispatch(showNotification({ message: `Error al cargar la plantilla de calificación: ${message}`, severity: 'error' }));
+            return rejectWithValue(message);
         }
     }
 );
 
-// Thunk para guardar las calificaciones de un ejemplar (modificado)
+// Thunk para guardar las calificaciones de un ejemplar
 export const submitScores = createAsyncThunk(
     'scoring/submitScores',
     async ({ animalId, scores }, { dispatch, rejectWithValue }) => {
         try {
-            // 1. Intentamos guardar en el backend real
             const { data } = await api.post(`/animals/${animalId}/scores/`, { scores });
             dispatch(showNotification({ message: 'Calificación guardada con éxito', severity: 'success' }));
             return data;
         } catch (error) {
-            // 2. Si el guardado real falla, usamos la simulación
-            dispatch(showNotification({ message: 'Calificación guardada (simulación).', severity: 'success' }));
-            try {
-                const mockData = await mockSubmitScores({ animalId, scores });
-                return mockData; // Retornamos los datos simulados para que la promesa se resuelva
-            } catch (mockError) {
-                // Este bloque solo se ejecutaría si la simulación fallara, lo cual es improbable.
-                const message = 'Error al simular el guardado.';
-                dispatch(showNotification({ message, severity: 'error' }));
-                return rejectWithValue(message);
-            }
+            const message = error.response?.data?.message || error.message;
+            dispatch(showNotification({ message: `Error al guardar la calificación: ${message}`, severity: 'error' }));
+            return rejectWithValue(message);
         }
     }
 );

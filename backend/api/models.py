@@ -12,6 +12,7 @@ class Raza(models.Model):
         return self.nombre
 
 class CategoriaPuntuacion(models.Model):
+    raza = models.ForeignKey(Raza, on_delete=models.CASCADE, related_name='categorias_puntuacion', null=True, blank=True)
     nombre = models.CharField(max_length=100)
     ponderacion = models.IntegerField(help_text="Porcentaje del total, ej: 40 para 40%")
     puntaje_ideal_total = models.IntegerField(default=0)
@@ -37,6 +38,8 @@ class Ejemplar(models.Model):
     peso_actual = models.FloatField(blank=True, null=True)
     talla_actual = models.FloatField(blank=True, null=True)
     foto = models.ImageField(upload_to='ejemplares_fotos/', blank=True, null=True)
+    score_total = models.FloatField(null=True, blank=True, help_text="Último score total calculado para el ejemplar")
+    last_score_date = models.DateField(null=True, blank=True, help_text="Fecha de la última calificación")
 
     def __str__(self):
         return f"{self.nombre or 'Sin Nombre'} ({self.identificador})"

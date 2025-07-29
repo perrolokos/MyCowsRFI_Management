@@ -21,8 +21,8 @@ export const ScorePage = () => {
     const [scores, setScores] = useState({});
 
     useEffect(() => {
-        if (animal?.raza) {
-            dispatch(fetchScoreTemplate(animal.raza));
+        if (animal?.raza?.id) {
+            dispatch(fetchScoreTemplate(animal.raza.id));
         }
     }, [dispatch, animal]);
 
@@ -53,7 +53,7 @@ export const ScorePage = () => {
         const scoresToSubmit = Object.entries(scores)
             .filter(([, value]) => value !== '' && !isNaN(value))
             .map(([characteristicId, score]) => ({
-                caracteristica: parseInt(characteristicId),
+                caracteristica_id: parseInt(characteristicId),
                 puntuacion_obtenida: score
             }));
 
@@ -87,10 +87,15 @@ export const ScorePage = () => {
         <Container maxWidth="lg">
             <Paper sx={{ p: 4, mt: 4 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                    <div>
-                        <Typography variant="h4">Calificación de Ejemplar</Typography>
-                        <Typography variant="h6" color="text.secondary">{animal.nombre} ({animal.identificador})</Typography>
-                    </div>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        {animal.foto_url && (
+                            <img src={animal.foto_url} alt={animal.nombre} style={{ width: 80, height: 80, borderRadius: '50%', marginRight: 16, objectFit: 'cover' }} />
+                        )}
+                        <div>
+                            <Typography variant="h4">Calificación de Ejemplar</Typography>
+                            <Typography variant="h6" color="text.secondary">{animal.nombre} ({animal.identificador})</Typography>
+                        </div>
+                    </Box>
                     <Chip label={`Score Final: ${finalScore}`} color="primary" sx={{ fontSize: '1.2rem', py: 2, px: 1 }} />
                 </Box>
                 <Divider sx={{ mb: 3 }} />

@@ -7,24 +7,17 @@ import {
 import {
     BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid
 } from 'recharts';
-import { fetchDashboardData } from '../features/dashboard/dashboardSlice';
+import { fetchDashboardData, fetchSensorData } from '../features/dashboard/dashboardSlice';
 
 // Datos simulados para el gráfico de sensores
-const sensorData = [
-    { time: '08:00', temperatura: 38.5, actividad: 200 },
-    { time: '10:00', temperatura: 38.7, actividad: 500 },
-    { time: '12:00', temperatura: 39.0, actividad: 450 },
-    { time: '14:00', temperatura: 39.1, actividad: 800 },
-    { time: '16:00', temperatura: 38.8, actividad: 600 },
-    { time: '18:00', temperatura: 38.6, actividad: 300 },
-];
-
 export const DashboardPage = () => {
     const dispatch = useDispatch();
-    const { averageScoresByBreed, recentScores, isLoading, error } = useSelector((state) => state.dashboard);
+    const { averageScoresByBreed, recentScores, sensorData, isLoading, error } = useSelector((state) => state.dashboard);
 
     useEffect(() => {
         dispatch(fetchDashboardData());
+        // Hardcoding animal ID 1 for sensor data for now. In a real app, this would be dynamic.
+        dispatch(fetchSensorData(1)); 
     }, [dispatch]);
 
     if (isLoading) {
@@ -64,7 +57,7 @@ export const DashboardPage = () => {
                             <Table stickyHeader size="small">
                                 <TableHead>
                                     <TableRow>
-                                        <TableCell>Ejemplar (ID)</TableCell>
+                                        <TableCell>Ejemplar</TableCell>
                                         <TableCell align="right">Score</TableCell>
                                         <TableCell align="right">Fecha</TableCell>
                                     </TableRow>
@@ -72,8 +65,13 @@ export const DashboardPage = () => {
                                 <TableBody>
                                     {recentScores.map((row) => (
                                         <TableRow key={row.id}>
-                                            <TableCell>{`${row.animalName} (${row.animalIdentifier})`}</TableCell>
-                                            <TableCell align="right">{row.score.toFixed(1)}</TableCell>
+                                            <TableCell sx={{ display: 'flex', alignItems: 'center' }}>
+                                                {row.animalPhotoUrl && (
+                                                    <img src={row.animalPhotoUrl} alt={row.animalName} style={{ width: 40, height: 40, borderRadius: '50%', marginRight: 8, objectFit: 'cover' }} />
+                                                )}
+                                                {`${row.animalName} (${row.animalIdentifier})`}
+                                            </TableCell>
+                                            <TableCell align="right">{typeof row.score === 'number' ? row.score.toFixed(1) : 'N/A'}</TableCell>
                                             <TableCell align="right">{row.date}</TableCell>
                                         </TableRow>
                                     ))}
@@ -86,14 +84,14 @@ export const DashboardPage = () => {
                 {/* Gráfico de Datos de Sensor */}
                 <Grid item xs={12}>
                     <Paper sx={{ p: 3, height: '400px' }}>
-                        <Typography variant="h6" gutterBottom>Monitor de Sensores (Ejemplar: Bessy)</Typography>
+                        <Typography variant="h6" gutterBottom>Monitor de Sensores (Ejemplar: 1)</Typography>
                         <ResponsiveContainer width="100%" height="90%">
                             <LineChart data={sensorData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="time" />
+                                <XAxis dataKey="timestamp" tickFormatter={(tick) => new Date(tick).toLocaleTimeString()} />
                                 <YAxis yAxisId="left" />
                                 <YAxis yAxisId="right" orientation="right" />
-                                <Tooltip />
+                                <Tooltip labelFormatter={(label) => new Date(label).toLocaleString()} />
                                 <Legend />
                                 <Line yAxisId="left" type="monotone" dataKey="temperatura" stroke="#d32f2f" name="Temperatura (°C)" />
                                 <Line yAxisId="right" type="monotone" dataKey="actividad" stroke="#1976d2" name="Actividad (Pasos)" />
