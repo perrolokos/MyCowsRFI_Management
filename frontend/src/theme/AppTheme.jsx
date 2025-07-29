@@ -3,28 +3,23 @@ import { createTheme } from '@mui/material/styles';
 export const AppTheme = createTheme({
     palette: {
         primary: {
-            main: '#4CAF50', // Un verde agradable
+            main: '#4CAF50', // Verde Ganadero
         },
         secondary: {
-            main: '#FFC107', // Un amarillo/ámbar
+            main: '#795548', // Marrón Tierra
         },
         error: {
-            main: '#F44336',
+            main: '#D32F2F',
         },
         background: {
-            default: '#f4f6f8',
-            paper: '#FFFFFF',
+            default: '#f5f5f5', // Un gris muy claro
+            paper: '#ffffff',
         },
     },
     typography: {
-        fontFamily: 'Roboto, sans-serif',
+        fontFamily: 'Roboto, "Helvetica", "Arial", sans-serif',
         h4: {
-            fontWeight: 600,
-            fontSize: '1.8rem',
-        },
-        h5: {
-            fontWeight: 500,
-            fontSize: '1.5rem',
+            fontWeight: 700,
         },
     },
     components: {
@@ -32,18 +27,25 @@ export const AppTheme = createTheme({
             styleOverrides: {
                 root: {
                     borderRadius: 8,
+                    textTransform: 'none',
                 },
-            },
-        },
-        MuiTextField: {
-            defaultProps: {
-                variant: 'outlined',
             },
         },
         MuiPaper: {
             styleOverrides: {
                 root: {
-                    borderRadius: 8,
+                    borderRadius: 12,
+                },
+            },
+        },
+        MuiDataGrid: {
+            styleOverrides: {
+                root: {
+                    border: 'none',
+                },
+                columnHeaders: {
+                    backgroundColor: '#f5f5f5',
+                    fontWeight: 'bold',
                 },
             },
         },

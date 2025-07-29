@@ -1,14 +1,14 @@
-
 import React from 'react';
 import { useSelector } from 'react-redux';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 
 export const ProtectedRoute = ({ children }) => {
-    const { user } = useSelector((state) => state.auth);
+    const { token } = useSelector((state) => state.auth);
+    const location = useLocation();
 
-    if (!user) {
-        // User not authenticated, redirect to login page
-        return <Navigate to="/login" replace />;
+    if (!token) {
+        // Redirige a login, guardando la ubicación a la que intentaban acceder
+        return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
     return children;

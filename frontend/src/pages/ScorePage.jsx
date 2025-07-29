@@ -1,139 +1,141 @@
-import React, { useEffect, useState } from 'react';
-import {
-    Box,
-    Typography,
-    Container,
-    CircularProgress,
-    Alert,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
-    Button,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-} from '@mui/material';
-import { Navbar } from '../components/Navbar';
-import { Footer } from '../components/Footer';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchAnimals } from '../redux/animals/animalSlice';
-import { fetchScoreTemplates } from '../redux/scoring/scoreTemplateSlice';
-import { ScoreForm } from '../components/ScoreForm';
+import {
+    Container, Typography, Paper, Box, Grid, TextField, Button,
+    CircularProgress, Accordion, AccordionSummary, AccordionDetails, Divider, Chip
+} from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { fetchScoreTemplate, submitScores } from '../features/scoring/scoringSlice';
 
 export const ScorePage = () => {
+    const { animalId } = useParams();
+    const location = useLocation();
+    const navigate = useNavigate();
     const dispatch = useDispatch();
-    const { animals, isLoading: animalsLoading, error: animalsError } = useSelector((state) => state.animals);
-    const { templates, isLoading: templatesLoading, error: templatesError } = useSelector((state) => state.scoreTemplates);
+    
+    // Obtenemos los datos del animal pasados desde la página anterior
+    const animal = location.state?.animal;
 
-    const [selectedAnimalId, setSelectedAnimalId] = useState('');
-    const [selectedAnimal, setSelectedAnimal] = useState(null);
-    const [scoreTemplate, setScoreTemplate] = useState(null);
-    const [openScoreForm, setOpenScoreForm] = useState(false);
-
-    useEffect(() => {
-        dispatch(fetchAnimals());
-        dispatch(fetchScoreTemplates());
-    }, [dispatch]);
+    const { template, isLoading, error } = useSelector((state) => state.scoring);
+    const [scores, setScores] = useState({});
 
     useEffect(() => {
-        if (selectedAnimalId && animals.length > 0) {
-            const animal = animals.find(a => a.id === selectedAnimalId);
-            setSelectedAnimal(animal);
-            if (animal && templates.length > 0) {
-                // Assuming 'raza' in animal object is the ID of the breed
-                const template = templates.find(t => t.raza === animal.raza);
-                setScoreTemplate(template);
-            }
+        if (animal?.raza) {
+            dispatch(fetchScoreTemplate(animal.raza));
         }
-    }, [selectedAnimalId, animals, templates]);
+    }, [dispatch, animal]);
 
-    const handleAnimalChange = (event) => {
-        setSelectedAnimalId(event.target.value);
-        setScoreTemplate(null); // Reset template when animal changes
-        setSelectedAnimal(null); // Reset selected animal when animal changes
+    const handleScoreChange = (characteristicId, value) => {
+        const score = value === '' ? '' : parseFloat(value);
+        setScores(prevScores => ({
+            ...prevScores,
+            [characteristicId]: score,
+        }));
     };
 
-    const handleOpenScoreForm = () => {
-        setOpenScoreForm(true);
+    const finalScore = useMemo(() => {
+        if (!template.categories?.length) return 0;
+
+        let totalScore = 0;
+        template.categories.forEach(category => {
+            const categoryChars = template.characteristics.filter(c => c.categoria === category.id);
+            const categoryScoreSum = categoryChars.reduce((sum, char) => {
+                return sum + (scores[char.id] || 0);
+            }, 0);
+
+            totalScore += categoryScoreSum * (category.ponderacion / 100);
+        });
+        return totalScore.toFixed(2);
+    }, [scores, template]);
+
+    const handleSubmit = () => {
+        const scoresToSubmit = Object.entries(scores)
+            .filter(([, value]) => value !== '' && !isNaN(value))
+            .map(([characteristicId, score]) => ({
+                caracteristica: parseInt(characteristicId),
+                puntuacion_obtenida: score
+            }));
+
+        if (scoresToSubmit.length > 0) {
+            dispatch(submitScores({ animalId, scores: scoresToSubmit }))
+                .unwrap()
+                .then(() => navigate('/animals'));
+        }
     };
 
-    const handleCloseScoreForm = () => {
-        setOpenScoreForm(false);
-        setSelectedAnimalId(''); // Reset selected animal after form submission
-        setSelectedAnimal(null);
-        setScoreTemplate(null);
-        // Optionally re-fetch animals or scores if needed after submission
-    };
+    if (!animal) {
+        return (
+            <Container>
+                <Paper sx={{ p: 3, textAlign: 'center' }}>
+                    <Typography color="error">Error: No se ha especificado un ejemplar.</Typography>
+                    <Button onClick={() => navigate('/animals')} sx={{ mt: 2 }}>Volver a la lista</Button>
+                </Paper>
+            </Container>
+        );
+    }
+    
+    if (isLoading && !template.categories.length) {
+        return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Box>;
+    }
+
+    if (error) {
+        return <Typography color="error" sx={{ textAlign: 'center', mt: 4 }}>{error}</Typography>;
+    }
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-            <Navbar />
-            <Container component="main" sx={{ mt: 8, mb: 2 }} maxWidth="md">
-                <Typography variant="h4" component="h1" gutterBottom>
-                    Calificación de Ejemplares
-                </Typography>
+        <Container maxWidth="lg">
+            <Paper sx={{ p: 4, mt: 4 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                    <div>
+                        <Typography variant="h4">Calificación de Ejemplar</Typography>
+                        <Typography variant="h6" color="text.secondary">{animal.nombre} ({animal.identificador})</Typography>
+                    </div>
+                    <Chip label={`Score Final: ${finalScore}`} color="primary" sx={{ fontSize: '1.2rem', py: 2, px: 1 }} />
+                </Box>
+                <Divider sx={{ mb: 3 }} />
 
-                {(animalsLoading || templatesLoading) && <CircularProgress />}
-                {(animalsError || templatesError) && (
-                    <Alert severity="error">Error: {animalsError?.message || templatesError?.message || 'No se pudieron cargar los datos necesarios.'}</Alert>
-                )}
+                <Grid container spacing={4}>
+                    <Grid item xs={12}>
+                        {template.categories.map(category => (
+                            <Accordion key={category.id} defaultExpanded>
+                                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                    <Typography variant="h6">{category.nombre} ({category.ponderacion}%)</Typography>
+                                </AccordionSummary>
+                                <AccordionDetails>
+                                    <Grid container spacing={2}>
+                                        {template.characteristics
+                                            .filter(c => c.categoria === category.id)
+                                            .map(char => (
+                                                <Grid item xs={12} sm={6} md={4} key={char.id}>
+                                                    <TextField
+                                                        fullWidth
+                                                        type="number"
+                                                        label={char.nombre}
+                                                        value={scores[char.id] || ''}
+                                                        onChange={(e) => handleScoreChange(char.id, e.target.value)}
+                                                        helperText={`Rango aceptado: ${char.rango_aceptado_min} - ${char.rango_aceptado_max} (Ideal: ${char.puntaje_ideal})`}
+                                                        inputProps={{
+                                                            min: char.rango_aceptado_min,
+                                                            max: char.rango_aceptado_max,
+                                                            step: "0.1"
+                                                        }}
+                                                    />
+                                                </Grid>
+                                            ))}
+                                    </Grid>
+                                </AccordionDetails>
+                            </Accordion>
+                        ))}
+                    </Grid>
+                </Grid>
 
-                {!animalsLoading && !animalsError && animals.length > 0 && (
-                    <FormControl fullWidth sx={{ mb: 3 }}>
-                        <InputLabel id="animal-select-label">Seleccionar Ejemplar</InputLabel>
-                        <Select
-                            labelId="animal-select-label"
-                            id="animal-select"
-                            value={selectedAnimalId}
-                            label="Seleccionar Ejemplar"
-                            onChange={handleAnimalChange}
-                        >
-                            {animals.map((animal) => (
-                                <MenuItem key={animal.id} value={animal.id}>
-                                    {animal.nombre} ({animal.identificador})
-                                </MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-                )}
-
-                {selectedAnimal && scoreTemplate && (
-                    <Box sx={{ mt: 4 }}>
-                        <Typography variant="h5" gutterBottom>
-                            Ejemplar Seleccionado: {selectedAnimal.nombre} ({selectedAnimal.identificador})
-                        </Typography>
-                        <Typography variant="h6" gutterBottom>
-                            Plantilla de Calificación: {scoreTemplate.nombre}
-                        </Typography>
-                        <Button variant="contained" color="primary" onClick={handleOpenScoreForm} sx={{ mt: 3 }}>
-                            Iniciar Calificación
-                        </Button>
-                    </Box>
-                )}
-
-                {!selectedAnimal && !animalsLoading && !animalsError && animals.length > 0 && (
-                    <Typography>Por favor, selecciona un ejemplar para calificar.</Typography>
-                )}
-
-                {!animalsLoading && !animalsError && animals.length === 0 && (
-                    <Typography>No hay ejemplares disponibles para calificar. Por favor, añade algunos en la sección de Gestión de Ejemplares.</Typography>
-                )}
-            </Container>
-            <Footer />
-
-            <Dialog open={openScoreForm} onClose={handleCloseScoreForm} fullWidth maxWidth="md">
-                <DialogTitle>Calificar Ejemplar</DialogTitle>
-                <DialogContent>
-                    {selectedAnimal && scoreTemplate && (
-                        <ScoreForm
-                            animal={selectedAnimal}
-                            scoreTemplate={scoreTemplate}
-                            onClose={handleCloseScoreForm}
-                        />
-                    )}
-                </DialogContent>
-            </Dialog>
-        </Box>
+                <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
+                    <Button variant="contained" size="large" onClick={handleSubmit} disabled={isLoading}>
+                        {isLoading ? <CircularProgress size={24} /> : 'Guardar Calificación'}
+                    </Button>
+                </Box>
+            </Paper>
+        </Container>
     );
 };

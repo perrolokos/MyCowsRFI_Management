@@ -1,5 +1,6 @@
 import React from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { Formik, Form, Field } from 'formik';
 import * as Yup from 'yup';
 import {
@@ -10,48 +11,42 @@ import {
     Typography,
     Container,
     Paper,
-    Alert
+    Link,
+    Grid
 } from '@mui/material';
-import { loginUser } from '../redux/auth/authSlice';
-import { useNavigate } from 'react-router-dom';
-import { showNotification } from '../redux/notification/notificationSlice';
+import { loginUser } from '../features/auth/authSlice';
 
+// Esquema de validación
 const LoginSchema = Yup.object().shape({
-    username: Yup.string().required('El usuario es obligatorio'),
+    username: Yup.string().required('El nombre de usuario es obligatorio'),
     password: Yup.string().required('La contraseña es obligatoria'),
 });
+
+// Componente de campo de texto para Formik
+const FormikTextField = ({ field, form: { touched, errors }, ...props }) => (
+    <MuiTextField
+        {...field}
+        {...props}
+        error={touched[field.name] && Boolean(errors[field.name])}
+        helperText={touched[field.name] && errors[field.name]}
+        fullWidth
+        margin="normal"
+    />
+);
 
 export const LoginPage = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const { isLoading, error } = useSelector((state) => state.auth);
+    const { isLoading } = useSelector((state) => state.auth);
 
-    const handleSubmit = async (values, { setSubmitting }) => {
-        try {
-            await dispatch(loginUser(values)).unwrap();
-            dispatch(showNotification({ message: 'Inicio de sesión exitoso', severity: 'success' }));
-            navigate('/dashboard');
-        } catch (err) {
-            dispatch(showNotification({ message: 'Error al iniciar sesión', severity: 'error' }));
-        } finally {
-            setSubmitting(false);
-        }
+    const handleSubmit = async (values) => {
+        await dispatch(loginUser(values)).unwrap();
+        navigate('/dashboard');
     };
 
-    const FormikTextField = ({ field, form: { touched, errors }, ...props }) => (
-        <MuiTextField
-            {...field}
-            {...props}
-            error={touched[field.name] && Boolean(errors[field.name])}
-            helperText={touched[field.name] && errors[field.name]}
-            fullWidth
-            margin="normal"
-        />
-    );
-
     return (
-        <Container component="main" maxWidth="xs" sx={{ mt: 8 }}>
-            <Paper elevation={3} sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <Container component="main" maxWidth="xs">
+            <Paper elevation={6} sx={{ p: 4, mt: 8, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <Typography component="h1" variant="h5">
                     Iniciar Sesión
                 </Typography>
@@ -65,7 +60,7 @@ export const LoginPage = () => {
                             <Field
                                 name="username"
                                 component={FormikTextField}
-                                label="Usuario"
+                                label="Nombre de Usuario"
                                 autoFocus
                             />
                             <Field
@@ -74,20 +69,23 @@ export const LoginPage = () => {
                                 label="Contraseña"
                                 type="password"
                             />
-                            {error && typeof error === 'string' && (
-                                <Alert severity="error" sx={{ mt: 2, width: '100%' }}>
-                                    {error}
-                                </Alert>
-                            )}
-                            <Button
-                                type="submit"
-                                fullWidth
-                                variant="contained"
-                                sx={{ mt: 3, mb: 2 }}
-                                disabled={isSubmitting || isLoading}
-                            >
-                                {isLoading ? <CircularProgress size={24} /> : 'Iniciar Sesión'}
-                            </Button>
+                            <Box sx={{ mt: 3, position: 'relative' }}>
+                                <Button
+                                    type="submit"
+                                    fullWidth
+                                    variant="contained"
+                                    disabled={isSubmitting || isLoading}
+                                >
+                                    {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Acceder'}
+                                </Button>
+                            </Box>
+                            <Grid container justifyContent="flex-end" sx={{ mt: 2 }}>
+                                <Grid item>
+                                    <Link component={RouterLink} to="/register" variant="body2">
+                                        ¿No tienes una cuenta? Regístrate
+                                    </Link>
+                                </Grid>
+                            </Grid>
                         </Form>
                     )}
                 </Formik>

@@ -1,19 +1,12 @@
-
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { RegisterPage } from '../pages/RegisterPage';
-import { AnimalManagementPage } from '../pages/AnimalManagementPage';
 import { DashboardPage } from '../pages/DashboardPage';
-
-// Componente para proteger rutas
-const ProtectedRoute = ({ children }) => {
-    const { token } = useSelector((state) => state.auth);
-    // Si no hay token, redirige al login
-    return token ? children : <Navigate to="/login" />;
-};
+import { AnimalManagementPage } from '../pages/AnimalManagementPage';
+import { ScorePage } from '../pages/ScorePage'; // <-- AÑADIR ESTA LÍNEA
+import { ProtectedRoute } from '../components/ProtectedRoute';
 
 export const AppRouter = () => {
     return (
@@ -24,17 +17,13 @@ export const AppRouter = () => {
             <Route path="/register" element={<RegisterPage />} />
 
             {/* Rutas Protegidas */}
-            <Route 
-                path="/dashboard" 
-                element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} 
-            />
-            <Route 
-                path="/animals" 
-                element={<ProtectedRoute><AnimalManagementPage /></ProtectedRoute>} 
-            />
+            <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+            <Route path="/animals" element={<ProtectedRoute><AnimalManagementPage /></ProtectedRoute>} />
+            {/* AÑADIR ESTA RUTA */}
+            <Route path="/animals/:animalId/score" element={<ProtectedRoute><ScorePage /></ProtectedRoute>} />
 
-            {/* Redirigir a dashboard si la ruta no existe */}
-            <Route path="*" element={<Navigate to="/dashboard" />} />
+            {/* Redirección por defecto */}
+            <Route path="*" element={<Navigate to="/" />} />
         </Routes>
     );
 };

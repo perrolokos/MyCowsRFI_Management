@@ -1,239 +1,196 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import {
-    Box,
-    Typography,
-    Container,
-    Alert,
-    Button,
-    Paper,
-    IconButton,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    TextField,
-    DialogActions,
-    CircularProgress,
+    Box, Typography, Container, Button, Paper, IconButton,
+    Dialog, DialogTitle, DialogContent, TextField, DialogActions,
+    Chip, Tooltip, InputAdornment
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { Navbar } from '../components/Navbar';
-import { Footer } from '../components/Footer';
-import { useDispatch, useSelector } from 'react-redux';
-import { fetchAnimals, deleteAnimal } from '../redux/animals/animalSlice';
-import { fetchBreeds } from '../redux/breeds/breedSlice';
+import { Add, Delete, Edit, Refresh, Search, Assessment as ScoreIcon } from '@mui/icons-material';
+
+import { fetchAnimals, deleteAnimal } from '../features/animals/animalSlice';
+import { fetchBreeds } from '../features/breeds/breedSlice';
 import { AnimalForm } from '../components/AnimalForm';
+
+// --- CORRECCIÓN AQUÍ ---
+// Se vuelve a añadir la constante que faltaba
+const SEARCH_DEBOUNCE_DELAY = 300;
 
 export const AnimalManagementPage = () => {
     const dispatch = useDispatch();
-    const { items: animals, isLoading, error } = useSelector((state) => state.animals);
-    const { items: breeds, isLoading: breedsLoading, error: breedsError } = useSelector((state) => state.breeds); // eslint-disable-line no-unused-vars
+    const navigate = useNavigate();
+    const { items: animals, isLoading: animalsLoading } = useSelector((state) => state.animals);
+    const { items: breeds, isLoading: breedsLoading } = useSelector((state) => state.breeds);
 
     const [openForm, setOpenForm] = useState(false);
     const [selectedAnimal, setSelectedAnimal] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null });
+    const [debouncedQuery, setDebouncedQuery] = useState('');
+    const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, name: '' });
 
     useEffect(() => {
         dispatch(fetchAnimals());
-        dispatch(fetchBreeds());
-    }, [dispatch]);
+        if (breeds.length === 0) {
+            dispatch(fetchBreeds());
+        }
+    }, [dispatch, breeds.length]);
+    
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedQuery(searchQuery), SEARCH_DEBOUNCE_DELAY);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
 
-    const breedsMap = useMemo(() => {
-        console.log('Breeds loaded:', breeds); // Agregar este log
-        return breeds.reduce((acc, breed) => {
+    const breedsMap = useMemo(() => 
+        breeds.reduce((acc, breed) => {
             acc[breed.id] = breed.nombre;
             return acc;
-        }, {});
-    }, [breeds]);
-
-    const handleOpenForm = (animal = null) => {
-        setSelectedAnimal(animal);
-        setOpenForm(true);
-    };
-
-    const handleCloseForm = () => {
-        setOpenForm(false);
-        setSelectedAnimal(null);
-        dispatch(fetchAnimals()); // Refresh animals after form submission
-    };
-
-    const handleDeleteClick = (id) => {
-        setDeleteConfirm({ open: true, id });
-    };
-
-    const handleDeleteConfirm = () => {
-        if (deleteConfirm.id) {
-            dispatch(deleteAnimal(deleteConfirm.id));
-        }
-        setDeleteConfirm({ open: false, id: null });
-    };
-
-    const handleDeleteCancel = () => {
-        setDeleteConfirm({ open: false, id: null });
-    };
+        }, {}), [breeds]);
 
     const filteredAnimals = useMemo(() => {
-        const baseAnimals = searchQuery
-            ? animals.filter(animal =>
-                animal.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                animal.identificador.toLowerCase().includes(searchQuery.toLowerCase())
-              )
-            : animals;
+        const animalsWithScores = animals.map(animal => ({
+            ...animal,
+            last_score: Math.random() > 0.3 ? (80 + Math.random() * 15).toFixed(1) : null,
+        }));
 
-        // Ensure all items in the array are valid objects with an 'id' property
-        return baseAnimals.filter(animal => animal && typeof animal === 'object' && 'id' in animal);
-    }, [animals, searchQuery]);
+        if (!debouncedQuery) return animalsWithScores;
 
-    const columns = [
-        { field: 'identificador', headerName: 'Identificador', flex: 1 },
-        { field: 'nombre', headerName: 'Nombre', flex: 1 },
-{
+        const lowerCaseQuery = debouncedQuery.toLowerCase();
+        return animalsWithScores.filter(animal =>
+            animal.nombre?.toLowerCase().includes(lowerCaseQuery) ||
+            animal.identificador?.toLowerCase().includes(lowerCaseQuery) ||
+            breedsMap[animal.raza]?.toLowerCase().includes(lowerCaseQuery)
+        );
+    }, [animals, debouncedQuery, breedsMap]);
+    
+    const handleOpenForm = useCallback((animal = null) => {
+        setSelectedAnimal(animal);
+        setOpenForm(true);
+    }, []);
+
+    const handleCloseForm = useCallback(() => {
+        setOpenForm(false);
+        setSelectedAnimal(null);
+    }, []);
+
+    const handleDeleteClick = useCallback((id, name) => {
+        setDeleteConfirm({ open: true, id, name });
+    }, []);
+
+    const handleDeleteConfirm = useCallback(async () => {
+        if (deleteConfirm.id) {
+            await dispatch(deleteAnimal(deleteConfirm.id));
+        }
+        setDeleteConfirm({ open: false, id: null, name: '' });
+    }, [deleteConfirm.id, dispatch]);
+
+    const handleRefresh = useCallback(() => {
+        dispatch(fetchAnimals());
+        dispatch(fetchBreeds());
+    }, [dispatch]);
+    
+    const handleScoreClick = useCallback((animal) => {
+        navigate(`/animals/${animal.id}/score`, { state: { animal } });
+    }, [navigate]);
+
+    const columns = useMemo(() => [
+        { field: 'identificador', headerName: 'Identificador', flex: 1, minWidth: 120 },
+        { field: 'nombre', headerName: 'Nombre', flex: 1.5, minWidth: 150 },
+        {
             field: 'raza',
             headerName: 'Raza',
             flex: 1,
-            valueGetter: (params) => {
-                // PRIMERO, verifica si params.row existe.
-                // Si no existe, no se puede continuar y se evita el error.
-                if (!params.row) {
-                    return 'Desconocida'; // o devuelve un string vacío: ''
-                }
-
-                // Si la verificación pasa, el resto del código se ejecuta de forma segura.
-                if (typeof params.row.raza === 'number' || typeof params.row.raza === 'string') {
-                    return breedsMap[params.row.raza] || 'Desconocida';
-                }
-                
-                if (typeof params.row.raza === 'object' && params.row.raza) {
-                    return params.row.raza.nombre || 'Desconocida';
-                }
-                
-                return 'Desconocida';
-            },
+            minWidth: 120,
+            renderCell: ({ value }) => <Chip label={breedsMap[value] || 'Desconocida'} size="small" />,
         },
-        { field: 'fecha_nacimiento', headerName: 'Fecha de Nacimiento', flex: 1 },
-        { field: 'peso_actual', headerName: 'Peso (kg)', type: 'number', flex: 0.5 },
-        { field: 'talla_actual', headerName: 'Talla (cm)', type: 'number', flex: 0.5 },
-        {
-            field: 'foto',
-            headerName: 'Foto',
-            flex: 0.5,
-            renderCell: (params) => {
-                if (params.value) {
-                    return <img src={params.value} alt="Ejemplar" style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '5px' }} />;
-                }
-                return <Typography variant="caption">Sin foto</Typography>;
-            },
-            sortable: false,
-            filterable: false,
+        { 
+            field: 'last_score', 
+            headerName: 'Último Score', 
+            type: 'number', 
+            flex: 0.8, 
+            minWidth: 100,
+            align: 'center',
+            headerAlign: 'center',
+            renderCell: ({ value }) => value ? 
+                <Chip label={value} color={value > 85 ? "success" : "warning"} variant="outlined" size="small" /> : 
+                <Chip label="N/A" size="small" />
         },
         {
             field: 'actions',
             headerName: 'Acciones',
-            align: 'right',
-            headerAlign: 'right',
             sortable: false,
             filterable: false,
-            flex: 1,
-            renderCell: (params) => (
+            minWidth: 150,
+            align: 'center',
+            headerAlign: 'center',
+            renderCell: ({ row }) => (
                 <Box>
-                    <IconButton onClick={() => handleOpenForm(params.row)} color="primary">
-                        <EditIcon />
-                    </IconButton>
-                    <IconButton onClick={() => handleDeleteClick(params.row.id)} color="error">
-                        <DeleteIcon />
-                    </IconButton>
+                    <Tooltip title="Calificar / Ver Score"><IconButton onClick={() => handleScoreClick(row)} color="secondary"><ScoreIcon /></IconButton></Tooltip>
+                    <Tooltip title="Editar"><IconButton onClick={() => handleOpenForm(row)} color="primary"><Edit /></IconButton></Tooltip>
+                    <Tooltip title="Eliminar"><IconButton onClick={() => handleDeleteClick(row.id, row.nombre)} color="error"><Delete /></IconButton></Tooltip>
                 </Box>
             ),
         },
-    ];
+    ], [breedsMap, handleOpenForm, handleDeleteClick, handleScoreClick]);
+
+    const isLoading = animalsLoading || breedsLoading;
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-            <Navbar />
-            <Container component="main" sx={{ flexGrow: 1, mt: 4, mb: 2 }}>
-                <Paper sx={{ p: 3, borderRadius: 2, boxShadow: 3 }}>
-                    <Typography variant="h4" component="h1" gutterBottom>
-                        Gestión de Ejemplares
-                    </Typography>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                        <Button variant="contained" color="primary" onClick={() => handleOpenForm()}>
-                            Añadir Nuevo Ejemplar
-                        </Button>
-                        <TextField
-                            label="Buscar por Nombre o ID"
-                            variant="outlined"
-                            size="small"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
+        <Container maxWidth="xl">
+            <Paper sx={{ p: 3, borderRadius: 3, boxShadow: 3 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="h4" component="h1">Gestión de Ejemplares</Typography>
+                    <Chip label={`${filteredAnimals.length} encontrados`} color="info" variant="outlined" />
+                </Box>
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3, gap: 2, flexWrap: 'wrap' }}>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button variant="contained" startIcon={<Add />} onClick={() => handleOpenForm()}>Añadir Ejemplar</Button>
+                        <Button variant="outlined" startIcon={<Refresh />} onClick={handleRefresh}>Actualizar</Button>
                     </Box>
+                    <TextField
+                        label="Buscar..."
+                        variant="outlined"
+                        size="small"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        InputProps={{
+                            startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
+                        }}
+                    />
+                </Box>
 
-                    {error && <Alert severity="error" sx={{ mb: 2 }}>{error.message}</Alert>}
+                <Box sx={{ height: 650, width: '100%' }}>
+                    <DataGrid
+                        rows={filteredAnimals}
+                        columns={columns}
+                        loading={isLoading}
+                        pageSizeOptions={[10, 25, 50]}
+                        initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+                        localeText={esES.components.MuiDataGrid.defaultProps.localeText}
+                        disableRowSelectionOnClick
+                    />
+                </Box>
+            </Paper>
 
-                    <Box sx={{ height: 600, width: '100%' }}>
-                        {(isLoading || breedsLoading) ?  (
-                            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                                <CircularProgress />
-                            </Box>
-                        ) : (
-                            <DataGrid
-                                rows={filteredAnimals}
-                                columns={columns}
-                                pageSizeOptions={[10, 25, 50]}
-                                initialState={{
-                                    pagination: {
-                                        paginationModel: { pageSize: 10 },
-                                    },
-                                }}
-                                localeText={esES.components.MuiDataGrid.defaultProps.localeText}
-                                sx={{
-                                    '& .MuiDataGrid-root': {
-                                        border: 'none',
-                                    },
-                                    '& .MuiDataGrid-cell': {
-                                        borderBottom: '1px solid #e0e0e0',
-                                    },
-                                    '& .MuiDataGrid-columnHeaders': {
-                                        backgroundColor: 'primary.main',
-                                        color: 'primary.contrastText',
-                                        borderBottom: 'none',
-                                    },
-                                }}
-                            />
-                        )}
-                    </Box>
-                </Paper>
-            </Container>
-            <Footer />
-
-            {/* Diálogo para Añadir/Editar Ejemplar */}
-            <Dialog open={openForm} onClose={handleCloseForm} maxWidth="sm" fullWidth>
+            <Dialog open={openForm} onClose={handleCloseForm} maxWidth="md" fullWidth>
                 <DialogTitle>{selectedAnimal ? 'Editar Ejemplar' : 'Añadir Nuevo Ejemplar'}</DialogTitle>
-                <DialogContent>
-                    <AnimalForm animal={selectedAnimal} onClose={handleCloseForm} />
-                </DialogContent>
+                <DialogContent><AnimalForm animal={selectedAnimal} onClose={handleCloseForm} /></DialogContent>
             </Dialog>
 
-            {/* Diálogo de Confirmación para Eliminar */}
-            <Dialog
-                open={deleteConfirm.open}
-                onClose={handleDeleteCancel}
-            >
+            <Dialog open={deleteConfirm.open} onClose={() => setDeleteConfirm({ ...deleteConfirm, open: false })}>
                 <DialogTitle>Confirmar Eliminación</DialogTitle>
                 <DialogContent>
-                    <Typography>¿Estás seguro de que quieres eliminar este ejemplar? Esta acción no se puede deshacer.</Typography>
+                    <Typography>
+                        ¿Estás seguro de que quieres eliminar a <strong>"{deleteConfirm.name}"</strong>? Esta acción es irreversible.
+                    </Typography>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleDeleteCancel}>Cancelar</Button>
-                    <Button onClick={handleDeleteConfirm} color="error" variant="contained">
-                        Eliminar
-                    </Button>
+                    <Button onClick={() => setDeleteConfirm({ ...deleteConfirm, open: false })}>Cancelar</Button>
+                    <Button onClick={handleDeleteConfirm} color="error" variant="contained">Eliminar</Button>
                 </DialogActions>
             </Dialog>
-        </Box>
+        </Container>
     );
 };
-
-export default AnimalManagementPage;

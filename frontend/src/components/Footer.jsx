@@ -6,7 +6,7 @@ export const Footer = () => {
         <Box
             component="footer"
             sx={{
-                py: 3,
+                py: 2,
                 px: 2,
                 mt: 'auto',
                 backgroundColor: (theme) =>
@@ -18,10 +18,11 @@ export const Footer = () => {
             <Container maxWidth="lg">
                 <Typography variant="body2" color="text.secondary" align="center">
                     {'Copyright © '}
-                    <Link color="inherit" href="https://mui.com/">
+                    <Link color="inherit" href="#">
                         MyCows_RFI
                     </Link>{' '}
-                    {new Date().getFullYear()}{'.'}
+                    {new Date().getFullYear()}
+                    {'.'}
                 </Typography>
             </Container>
         </Box>

@@ -1,24 +1,23 @@
-
 import axios from 'axios';
 
-// Crea una instancia de Axios con la URL base de tu API
+// La URL base debe apuntar a tu backend de Django.
+// Es recomendable usar variables de entorno para esto.
+const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
+
 const api = axios.create({
-    baseURL: 'http://127.0.0.1:8000/api', // Asegúrate de que coincida con tu backend
+    baseURL: API_URL,
 });
 
-// Interceptor de peticiones: se ejecuta ANTES de cada petición
-// Aquí es donde inyectamos el token de autenticación
+// Interceptor para inyectar el token de autenticación en cada petición
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('authToken');
         if (token) {
-            // Si el token existe, lo añadimos a la cabecera 'Authorization'
             config.headers['Authorization'] = `Bearer ${token}`;
         }
         return config;
     },
     (error) => {
-        // Si hay un error en la configuración de la petición, lo rechazamos
         return Promise.reject(error);
     }
 );

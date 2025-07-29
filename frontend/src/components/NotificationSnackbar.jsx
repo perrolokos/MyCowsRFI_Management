@@ -1,7 +1,7 @@
 import React from 'react';
 import { Snackbar, Alert } from '@mui/material';
 import { useSelector, useDispatch } from 'react-redux';
-import { hideNotification } from '../redux/notification/notificationSlice';
+import { hideNotification } from '../features/notification/notificationSlice';
 
 const NotificationSnackbar = () => {
     const dispatch = useDispatch();
@@ -15,8 +15,8 @@ const NotificationSnackbar = () => {
     };
 
     return (
-        <Snackbar open={open} autoHideDuration={6000} onClose={handleClose}>
-            <Alert onClose={handleClose} severity={severity} sx={{ width: '100%' }}>
+        <Snackbar open={open} autoHideDuration={6000} onClose={handleClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+            <Alert onClose={handleClose} severity={severity} sx={{ width: '100%' }} variant="filled">
                 {message}
             </Alert>
         </Snackbar>
